@@ -1,0 +1,21 @@
+[project]
+name = "twitch-plays-wolf"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "flask[async]>=3.1.0",
+]
+
+[project.scripts]
+twitch-plays-wolf = "twitch_plays_wolf:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+dependencies = [
+    "flask>=3.1.0",
+    "twitchapi>=4.4.0",
+]
