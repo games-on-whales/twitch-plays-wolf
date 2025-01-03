@@ -2,6 +2,7 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.type import AuthScope, TwitchAPIException
 from flask import Flask, redirect, request
+from twitch_plays_wolf.wolf import WolfAPI
 
 TARGET_SCOPE = [AuthScope.CHAT_READ]
 
@@ -31,8 +32,18 @@ async def login_confirm():
     return 'Sucessfully authenticated!'
 
 
-async def twitch_setup(APP_ID, APP_SECRET, APP_REDIRECT_URI, PORT):
+async def twitch_setup(APP_ID, APP_SECRET, APP_REDIRECT_URI):
     global twitch, auth
     twitch = await Twitch(APP_ID, APP_SECRET)
     auth = UserAuthenticator(twitch, TARGET_SCOPE, url=APP_REDIRECT_URI)
+
+
+async def setup_wolf(WOLF_SOCKET_PATH, TWITCH_STREAM_KEY, DOCKER_IMAGE):
+    global wolf
+    wolf = WolfAPI(WOLF_SOCKET_PATH, TWITCH_STREAM_KEY)
+    wolf.add_app(DOCKER_IMAGE)
+    wolf.create_session()
+
+
+async def run_server(PORT):
     app.run(host="0.0.0.0", port=PORT)
