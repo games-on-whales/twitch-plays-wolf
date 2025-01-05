@@ -30,7 +30,7 @@ class WolfAPI:
                 "name": "twitch-plays-wolf",
                 "image": docker_image,
                 "mounts": [],
-                "env": [],
+                "env": ["RUN_SWAY=1"],
                 "devices": [],
                 "ports": []
             }
