@@ -43,6 +43,7 @@ async def setup_wolf(WOLF_SOCKET_PATH, TWITCH_STREAM_KEY, DOCKER_IMAGE):
     wolf = WolfAPI(WOLF_SOCKET_PATH, TWITCH_STREAM_KEY)
     wolf.add_app(DOCKER_IMAGE)
     wolf.create_session()
+    wolf.start_session()
 
 
 async def run_server(PORT):
