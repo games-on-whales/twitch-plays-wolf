@@ -5,11 +5,10 @@ import logging
 
 
 class WolfAPI:
-    def __init__(self, socket_path: str, twitch_stream_key: str):
+    def __init__(self, socket_path: str):
         self.session = requests_unixsocket.Session()
         self.socket_path = "http+unix://" + socket_path.replace('/', "%2F") + "/api/v1"
         logging.debug("Using socket path: " + self.socket_path)
-        self.twitch_stream_key = twitch_stream_key
         self.wolf_session_id = None
 
     def add_app(self, docker_image: str):
@@ -61,8 +60,8 @@ class WolfAPI:
         self.wolf_session_id = resp.json()["session_id"]
         time.sleep(1)  # Wait for the session to be created
 
-    def start_session(self):
-        twitch_stream_endpoint = "rtmp://ingest.global-contribute.live-video.net/app/" + self.twitch_stream_key
+    def start_session(self, twitch_stream_key: str):
+        twitch_stream_endpoint = "rtmp://ingest.global-contribute.live-video.net/app/" + twitch_stream_key
         session_req = {
             "session_id": self.wolf_session_id,
             "video_session": {

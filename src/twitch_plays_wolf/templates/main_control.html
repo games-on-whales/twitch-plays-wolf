@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Confirm</title>
+</head>
+<body>
+<h1>Login Successful</h1>
+<div id="status"></div>
+<form id="chat-bot-form">
+    <label for="channel">Channel:</label>
+    <input type="text" id="channel" name="channel" required>
+    <button type="submit">Start Chat Bot</button>
+</form>
+<form id="stream-form">
+    <label for="docker_image">Docker Image:</label>
+    <input type="text" id="docker_image" name="docker_image" required>
+    <label for="twitch_stream_key">Twitch Stream Key:</label>
+    <input type="text" id="twitch_stream_key" name="twitch_stream_key" required>
+    <button type="submit">Start Stream</button>
+</form>
+
+<script>
+    function updateStatus(message) {
+        document.getElementById('status').innerText = message;
+    }
+
+    document.getElementById('chat-bot-form').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        updateStatus('Starting Chat Bot...');
+        const data = {
+            channel: document.getElementById('channel').value
+        };
+        const response = await fetch('/chat-bot/listen/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            updateStatus('Chat Bot started successfully.');
+        } else {
+            updateStatus('Failed to start Chat Bot.');
+        }
+    });
+
+    document.getElementById('stream-form').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        updateStatus('Starting Stream...');
+        const data = {
+            docker_image: document.getElementById('docker_image').value,
+            twitch_stream_key: document.getElementById('twitch_stream_key').value
+        };
+        const response = await fetch('/stream/start/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            updateStatus('Stream started successfully.');
+        } else {
+            updateStatus('Failed to start Stream.');
+        }
+    });
+</script>
+</body>
+</html>

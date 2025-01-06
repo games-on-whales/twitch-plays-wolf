@@ -1,50 +1,64 @@
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator
-from twitchAPI.type import AuthScope, TwitchAPIException
-from flask import Flask, redirect, request
-from twitch_plays_wolf.wolf import WolfAPI
-
-TARGET_SCOPE = [AuthScope.CHAT_READ]
-
-app = Flask(__name__)
-twitch: Twitch
-auth: UserAuthenticator
+from twitchAPI.type import AuthScope, TwitchAPIException, ChatEvent
+from twitchAPI.chat import Chat, EventData, ChatMessage
+import logging
 
 
-@app.route('/login')
-def login():
-    return redirect(auth.return_auth_url())
+class TwitchPlaysWolf:
+    def __init__(self, APP_ID, APP_SECRET, APP_REDIRECT_URI, TARGET_SCOPE=None):
+        self.twitch = None
+        self.chat = None
+        self.auth = None
+        self.target_channels = []
+        self.APP_ID = APP_ID
+        self.APP_SECRET = APP_SECRET
+        self.APP_REDIRECT_URI = APP_REDIRECT_URI
+        self.TARGET_SCOPE = TARGET_SCOPE or [AuthScope.CHAT_READ]
 
+    async def create(self):
+        self.twitch = await Twitch(self.APP_ID, self.APP_SECRET)
+        self.auth = UserAuthenticator(self.twitch, self.TARGET_SCOPE, url=self.APP_REDIRECT_URI)
 
-@app.route('/login/confirm')
-async def login_confirm():
-    state = request.args.get('state')
-    if state != auth.state:
-        return 'Bad state', 401
-    code = request.args.get('code')
-    if code is None:
-        return 'Missing code', 400
-    try:
-        token, refresh = await auth.authenticate(user_token=code)
-        await twitch.set_user_authentication(token, TARGET_SCOPE, refresh)
-    except TwitchAPIException as e:
-        return 'Failed to generate auth token', 400
-    return 'Sucessfully authenticated!'
+    def login_redirect_url(self):
+        return self.auth.return_auth_url()
 
+    async def login_confirm(self, state, code):
+        if state != self.auth.state:
+            return True, 'Bad state'
+        if code is None:
+            return True, 'Missing code'
+        try:
+            token, refresh = await self.auth.authenticate(user_token=code)
+            await self.twitch.set_user_authentication(token, self.TARGET_SCOPE, refresh)
+        except TwitchAPIException as e:
+            return True, 'Failed to generate auth token'
+        return False, ""
 
-async def twitch_setup(APP_ID, APP_SECRET, APP_REDIRECT_URI):
-    global twitch, auth
-    twitch = await Twitch(APP_ID, APP_SECRET)
-    auth = UserAuthenticator(twitch, TARGET_SCOPE, url=APP_REDIRECT_URI)
+    async def chat_join(self, ready_event: EventData):
+        logging.debug("Bot is ready to join channels")
+        await ready_event.chat.join_room(self.target_channels)
 
+    async def on_chat_message(self, msg: ChatMessage):
+        logging.debug(f'in {msg.room.name}, {msg.user.name} said: {msg.text}')
 
-async def setup_wolf(WOLF_SOCKET_PATH, TWITCH_STREAM_KEY, DOCKER_IMAGE):
-    global wolf
-    wolf = WolfAPI(WOLF_SOCKET_PATH, TWITCH_STREAM_KEY)
-    wolf.add_app(DOCKER_IMAGE)
-    wolf.create_session()
-    wolf.start_session()
+    async def chat_bot_setup(self, target_channel):
+        if self.chat is None:
+            self.chat = await Chat(self.twitch)
+        else:
+            self.chat.stop()
 
+        self.target_channels.append(target_channel)
+        # listen to when the bot is done starting up and ready to join channels
+        self.chat.register_event(ChatEvent.READY, self.chat_join)
+        # listen to chat messages
+        self.chat.register_event(ChatEvent.MESSAGE, self.on_chat_message)
+        self.chat.start()
+        return True
 
-async def run_server(PORT):
-    app.run(host="0.0.0.0", port=PORT)
+    async def stop(self):
+        if self.chat is not None:
+            self.chat.stop()
+
+        if self.twitch is not None:
+            await self.twitch.close()
