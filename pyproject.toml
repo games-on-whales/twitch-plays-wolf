@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aioemit>=0.0.1",
     "flask[async]>=3.1.0",
     "requests-unixsocket2>=0.4.2",
 ]

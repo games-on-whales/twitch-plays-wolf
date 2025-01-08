@@ -10,6 +10,8 @@
 <form id="chat-bot-form">
     <label for="channel">Channel:</label>
     <input type="text" id="channel" name="channel" required>
+    <label for="wolf_session_id">Wolf Session ID:</label>
+    <input type="text" id="wolf_session_id" name="wolf_session_id" required>
     <button type="submit">Start Chat Bot</button>
 </form>
 <form id="stream-form">
@@ -25,11 +27,12 @@
         document.getElementById('status').innerText = message;
     }
 
-    document.getElementById('chat-bot-form').addEventListener('submit', async function(event) {
+    document.getElementById('chat-bot-form').addEventListener('submit', async function (event) {
         event.preventDefault();
         updateStatus('Starting Chat Bot...');
         const data = {
-            channel: document.getElementById('channel').value
+            channel: document.getElementById('channel').value,
+            wolf_session_id: document.getElementById('wolf_session_id').value
         };
         const response = await fetch('/chat-bot/listen/', {
             method: 'POST',
@@ -45,7 +48,7 @@
         }
     });
 
-    document.getElementById('stream-form').addEventListener('submit', async function(event) {
+    document.getElementById('stream-form').addEventListener('submit', async function (event) {
         event.preventDefault();
         updateStatus('Starting Stream...');
         const data = {

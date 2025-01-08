@@ -25,13 +25,18 @@ async def login_confirm():
 @app.route("/chat-bot/listen/", methods=['POST'])
 async def chat_bot_start():
     twitch: TwitchPlaysWolf = app.config['STATE'].twitch
+    wolf: WolfAPI = app.config['STATE'].wolf
     if request.is_json:
         data = request.get_json()
     else:
         data = request.form
     logging.debug(data)
 
-    await twitch.chat_bot_setup(data["channel"])
+    listen_channel = data.get("channel")
+    wolf_session_id = data.get("wolf_session_id")
+
+    await twitch.chat_bot_setup(listen_channel)
+    wolf.listen_for_input(wolf_session_id)
     return "Chat bot starting...", 200
 
 
@@ -45,7 +50,7 @@ async def start_stream():
 
     wolf: WolfAPI = app.config['STATE'].wolf
     wolf.add_app(data['docker_image'])
-    wolf.create_session()
-    wolf.start_session(data['twitch_stream_key'])
+    session_id = wolf.create_session()
+    wolf.start_session(session_id, data['twitch_stream_key'])
 
     return "Stream starting...", 200

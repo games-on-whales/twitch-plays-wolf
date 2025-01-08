@@ -1,12 +1,17 @@
+import asyncio
+
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.type import AuthScope, TwitchAPIException, ChatEvent
 from twitchAPI.chat import Chat, EventData, ChatMessage
 import logging
+from aioemit import Emitter, Event
+
+from twitch_plays_wolf.data import MessageEvent
 
 
 class TwitchPlaysWolf:
-    def __init__(self, APP_ID, APP_SECRET, APP_REDIRECT_URI, TARGET_SCOPE=None):
+    def __init__(self, event_bus: Emitter, APP_ID, APP_SECRET, APP_REDIRECT_URI, TARGET_SCOPE=None):
         self.twitch = None
         self.chat = None
         self.auth = None
@@ -15,6 +20,7 @@ class TwitchPlaysWolf:
         self.APP_SECRET = APP_SECRET
         self.APP_REDIRECT_URI = APP_REDIRECT_URI
         self.TARGET_SCOPE = TARGET_SCOPE or [AuthScope.CHAT_READ]
+        self.event_bus = event_bus
 
     async def create(self):
         self.twitch = await Twitch(self.APP_ID, self.APP_SECRET)
@@ -41,7 +47,9 @@ class TwitchPlaysWolf:
 
     async def on_chat_message(self, msg: ChatMessage):
         logging.debug(f'in {msg.room.name}, {msg.user.name} said: {msg.text}')
+        await self.event_bus.emit(Event("chat_message", MessageEvent(msg.room.name, msg.user.name, msg.text)))
 
+    # TODO: pass Wolf session_id
     async def chat_bot_setup(self, target_channel):
         if self.chat is None:
             self.chat = await Chat(self.twitch)

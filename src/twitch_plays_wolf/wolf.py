@@ -1,15 +1,20 @@
 import time
+from time import sleep
 
+from aioemit import Emitter, Event
 import requests_unixsocket
 import logging
+import struct
+
+from twitch_plays_wolf.data import MessageEvent
 
 
 class WolfAPI:
-    def __init__(self, socket_path: str):
+    def __init__(self, event_bus: Emitter, socket_path: str):
         self.session = requests_unixsocket.Session()
         self.socket_path = "http+unix://" + socket_path.replace('/', "%2F") + "/api/v1"
         logging.debug("Using socket path: " + self.socket_path)
-        self.wolf_session_id = None
+        self.event_bus = event_bus
 
     def add_app(self, docker_image: str):
         twitch_app_req = {
@@ -20,7 +25,7 @@ class WolfAPI:
             "h264_gst_pipeline": "",
             "hevc_gst_pipeline": "",
             "av1_gst_pipeline": "",
-            "render_node": "/dev/dri/renderD128",  # TODO:
+            "render_node": "/dev/dri/renderD129",  # TODO:
             "opus_gst_pipeline": "",  # TODO: Audio
             "start_virtual_compositor": True,
             "start_audio_server": True,
@@ -57,13 +62,13 @@ class WolfAPI:
         }
         resp = self.session.post(self.socket_path + "/sessions/add", json=session_req)
         logging.debug(resp.json())
-        self.wolf_session_id = resp.json()["session_id"]
         time.sleep(1)  # Wait for the session to be created
+        return resp.json()["session_id"]
 
-    def start_session(self, twitch_stream_key: str):
+    def start_session(self, session_id: str, twitch_stream_key: str):
         twitch_stream_endpoint = "rtmp://ingest.global-contribute.live-video.net/app/" + twitch_stream_key
         session_req = {
-            "session_id": self.wolf_session_id,
+            "session_id": session_id,
             "video_session": {
                 "display_mode": {
                     "width": 1920,
@@ -72,12 +77,13 @@ class WolfAPI:
                 },
                 "gst_pipeline": "interpipesrc listen-to={session_id}_video is-live=true stream-sync=restart-ts max-bytes=0 max-buffers=3 block=false ! "
                                 "video/x-raw, width={width}, height={height}, format=RGBx ! "
-                                "queue ! "
-                                "videoconvertscale ! "
-                                "x264enc pass=cbr tune=zerolatency key-int-max=60 bitrate=4500 ! "
-                                "video/x-h264, profile=high ! "
-                                "flvmux ! "
-                                "rtmp2sink location=\"" + twitch_stream_endpoint + "\"",
+                                "queue max-size-buffers=0 max-size-bytes=0 max-size-time=0 ! "
+                                "cudaupload ! "
+                                "cudaconvertscale ! "
+                                "nvh264enc rc-mode=cbr tune=high-quality min-force-key-unit-interval=2000000000 bitrate=4500 ! "
+                                "h264parse ! "
+                                "flvmux streamable=true ! "
+                                "rtmp2sink max-lateness=1000 location=\"" + twitch_stream_endpoint + "\"",
                 "session_id": -1,  # Will be replaced by the server
                 "port": 9999,
                 "wait_for_ping": False,
@@ -114,3 +120,75 @@ class WolfAPI:
         }
         resp = self.session.post(self.socket_path + "/sessions/start", json=session_req)
         logging.debug(resp.json())
+
+    @staticmethod
+    def encode_keyboard_input(key_code, is_press=True, modifiers=0):
+        """
+        Creates a KEYBOARD_PACKET structure and returns it as a base64 encoded string.
+
+        Args:
+            key_code (int): The key code to send
+            is_press (bool): True for key press, False for key release
+            modifiers (int): Keyboard modifiers (shift, ctrl, etc.)
+
+        Returns:
+            str: The HEX encoded packet
+        """
+        # Constants
+        PACKET_TYPE_INPUT = 0x0206  # Little endian INPUT_DATA
+        KEY_PRESS = 0x00000003  # Little endian KEY_PRESS value
+        KEY_RELEASE = 0x00000004  # Little endian KEY_RELEASE value
+
+        # Calculate sizes
+        base_struct_size = 12  # Size of INPUT_PKT (2 + 2 + 4 + 4)
+        keyboard_data_size = 6  # Size of additional KEYBOARD_PACKET data
+        total_packet_size = base_struct_size + keyboard_data_size
+
+        # Create the packet
+        packet = struct.pack('<H', PACKET_TYPE_INPUT)  # packet_type (2 bytes, little endian)
+        packet += struct.pack('<H', total_packet_size)  # packet_len (2 bytes, little endian)
+        packet += struct.pack('<I', keyboard_data_size)  # data_size (4 bytes, little endian)
+        packet += struct.pack('<I', KEY_PRESS if is_press else KEY_RELEASE)  # INPUT_TYPE (4 bytes, little endian)
+
+        # Add KEYBOARD_PACKET specific fields
+        packet += struct.pack('B', 0)  # flags (1 byte)
+        packet += struct.pack('<h', key_code)  # key_code (2 bytes, little endian)
+        packet += struct.pack('B', modifiers)  # modifiers (1 byte)
+        packet += struct.pack('<h', 0)  # zero1 (2 bytes, little endian)
+
+        return packet.hex().upper()
+
+    async def send_input(self, event: Event):
+        available_inputs = {
+            "up": 0x26,
+            "down": 0x28,
+            "left": 0x25,
+            "right": 0x27,
+            "enter": 0x0D,
+            "delete": 0x08,
+        }
+
+        message_ev: MessageEvent = event.data
+        selected_input = available_inputs[message_ev.msg.split(" ")[0].lower()]
+        logging.debug(f"Sending input: {selected_input}")
+        if selected_input:
+            # Press key
+            input_req = {
+                "session_id": "4135727842959053255",  # TODO: pass this
+                "input_packet_hex": WolfAPI.encode_keyboard_input(selected_input)
+            }
+            resp = self.session.post(self.socket_path + "/sessions/input", json=input_req)
+            logging.debug(resp.json())
+
+            sleep(0.1)
+
+            # Release key
+            input_req = {
+                "session_id": "4135727842959053255",  # TODO: pass this
+                "input_packet_hex": WolfAPI.encode_keyboard_input(selected_input, False)
+            }
+            resp = self.session.post(self.socket_path + "/sessions/input", json=input_req)
+            logging.debug(resp.json())
+
+    def listen_for_input(self, session_id: str):
+        self.event_bus.subscribe("chat_message", self.send_input)

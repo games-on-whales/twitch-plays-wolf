@@ -7,7 +7,7 @@ from twitch_plays_wolf.wolf import WolfAPI
 from twitch_plays_wolf.api import app
 
 from dataclasses import dataclass
-
+from aioemit import Emitter
 
 @dataclass(frozen=True)
 class GlobalState:
@@ -28,9 +28,11 @@ def main():
 
     logging.basicConfig(level=logging.DEBUG)
 
+    event_bus = Emitter()
+
     state = GlobalState(
-        wolf=WolfAPI(WOLF_SOCKET_PATH),
-        twitch=TwitchPlaysWolf(APP_ID, APP_SECRET, APP_REDIRECT_URI)
+        wolf=WolfAPI(event_bus, WOLF_SOCKET_PATH),
+        twitch=TwitchPlaysWolf(event_bus, APP_ID, APP_SECRET, APP_REDIRECT_URI)
     )
     asyncio.run(state.twitch.create())
 
