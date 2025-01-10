@@ -49,7 +49,7 @@ class WolfAPI:
             "client_ip": "127.0.0.1",  # TODO
             "video_width": 1920,  # TODO: config
             "video_height": 1080,
-            "video_refresh_rate": 30,
+            "video_refresh_rate": 60,
             "audio_channel_count": 2,
             "client_settings": {
                 "run_uid": 1000,
@@ -73,14 +73,14 @@ class WolfAPI:
                 "display_mode": {
                     "width": 1920,
                     "height": 1080,
-                    "refreshRate": 30,
+                    "refreshRate": 60,
                 },
                 "gst_pipeline": "interpipesrc listen-to={session_id}_video is-live=true stream-sync=restart-ts max-bytes=0 max-buffers=3 block=false ! "
                                 "video/x-raw, width={width}, height={height}, format=RGBx ! "
-                                "queue max-size-buffers=0 max-size-bytes=0 max-size-time=0 ! "
+                                "queue leaky=downstream max-size-buffers=1 ! "
                                 "cudaupload ! "
                                 "cudaconvertscale ! "
-                                "nvh264enc rc-mode=cbr tune=high-quality min-force-key-unit-interval=2000000000 bitrate=4500 ! "
+                                "nvh264enc rc-mode=cbr tune=high-quality min-force-key-unit-interval=2000000000 bitrate=45000 ! "
                                 "h264parse ! "
                                 "flvmux streamable=true ! "
                                 "rtmp2sink max-lateness=1000 location=\"" + twitch_stream_endpoint + "\"",
